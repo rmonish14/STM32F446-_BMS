@@ -615,26 +615,44 @@ uint8_t ESP_ConnectWiFi(void) {
         UART_SendString("Connected to MONISH successfully!\r\n");
         wifi_connected = 1;
         
+        // Allow ESP-01S internal connection states and IP routing to stabilize
+        HAL_Delay(2000);
+        
         // MQTT setup
-        UART_SendString("Connecting to HiveMQ MQTT Broker...\r\n");
-        USART3_SendString("AT+MQTTUSERCFG=0,1,\"stm32_bms_client\",\"\",\"\",0,0,\"\"\r\n");
+        UART_SendString("Configuring HiveMQ MQTT Broker connection...\r\n");
+        char mqtt_cfg[128];
+        // Use a unique client ID using system tick timer to prevent connection rejection by the broker
+        sprintf(mqtt_cfg, "AT+MQTTUSERCFG=0,1,\"stm32_bms_%lu\",\"\",\"\",0,0,\"\"\r\n", HAL_GetTick());
+        USART3_SendString(mqtt_cfg);
+        
         if (ESP_WaitForResponse("OK", 2000)) {
-            USART3_SendString("AT+MQTTCONN=0,\"broker.hivemq.com\",1883,0\r\n");
-            if (ESP_WaitForResponse("OK", 5000)) {
-                UART_SendString("Connected to MQTT Broker!\r\n");
-                mqtt_connected = 1;
+            uint8_t retry = 3;
+            mqtt_connected = 0;
+            while (retry > 0) {
+                UART_SendString("Connecting to HiveMQ MQTT Broker...\r\n");
+                USART3_SendString("AT+MQTTCONN=0,\"broker.hivemq.com\",1883,0\r\n");
+                if (ESP_WaitForResponse("OK", 6000)) {
+                    UART_SendString("Connected to MQTT Broker successfully!\r\n");
+                    mqtt_connected = 1;
+                    break;
+                } else {
+                    UART_SendString("MQTT Connection failed, retrying in 2 seconds...\r\n");
+                    retry--;
+                    HAL_Delay(2000);
+                }
+            }
+            
+            if (mqtt_connected) {
                 // Publish boot log
                 USART3_MQTT_Publish("battery/terminal", "[SYSTEM] STM32 BMS Online. MQTT Connected.");
-            } else {
-                UART_SendString("MQTT Connection failed!\r\n");
-                mqtt_connected = 0;
             }
         } else {
-            UART_SendString("MQTT Config not supported by ESP firmware!\r\n");
+            UART_SendString("MQTT Config not supported by ESP firmware or busy!\r\n");
             mqtt_connected = 0;
         }
         return 1;
     }
+
     UART_SendString("Failed to connect to MONISH!\r\n");
     wifi_connected = 0;
     mqtt_connected = 0;
