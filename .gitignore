@@ -1,0 +1,10 @@
+# Build outputs
+**/*.o
+**/*.d
+**/*.su
+*.map
+*.list
+objects.list
+
+# Local IDE settings
+.settings/
