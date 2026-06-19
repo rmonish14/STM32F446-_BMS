@@ -68,7 +68,9 @@ float current_pack_a = 0.0f;
 float current_soc = 0.0f;
 uint8_t current_charge_status = 0; // 0=Idle, 1=Charging, 2=Discharging
 volatile uint8_t wifi_connected = 0;
+volatile uint8_t mqtt_connected = 0;
 float current_t1 = -999.0f;
+
 float current_t2 = -999.0f;
 float current_max_vib = 0.0f;
 float current_ppm = 0.0f;
@@ -579,7 +581,20 @@ uint8_t ESP_WaitForResponse(const char* expected, uint32_t timeout_ms) {
     return 0;
 }
 
+void USART3_MQTT_Publish(const char* topic, const char* payload) {
+    if (!wifi_connected) return;
+    int len = strlen(payload);
+    char cmd[128];
+    sprintf(cmd, "AT+MQTTPUBRAW=0,\"%s\",%d,0,0\r\n", topic, len);
+    USART3_SendString(cmd);
+    if (ESP_WaitForResponse(">", 1000)) {
+        USART3_SendString(payload);
+        ESP_WaitForResponse("OK", 2000);
+    }
+}
+
 uint8_t ESP_ConnectWiFi(void) {
+
     UART_SendString("Testing ESP-01S UART...\r\n");
     
     // Test AT command first
@@ -599,12 +614,33 @@ uint8_t ESP_ConnectWiFi(void) {
     if (ESP_WaitForResponse("WIFI GOT IP", 15000)) {
         UART_SendString("Connected to MONISH successfully!\r\n");
         wifi_connected = 1;
+        
+        // MQTT setup
+        UART_SendString("Connecting to HiveMQ MQTT Broker...\r\n");
+        USART3_SendString("AT+MQTTUSERCFG=0,1,\"stm32_bms_client\",\"\",\"\",0,0,\"\"\r\n");
+        if (ESP_WaitForResponse("OK", 2000)) {
+            USART3_SendString("AT+MQTTCONN=0,\"broker.hivemq.com\",1883,0\r\n");
+            if (ESP_WaitForResponse("OK", 5000)) {
+                UART_SendString("Connected to MQTT Broker!\r\n");
+                mqtt_connected = 1;
+                // Publish boot log
+                USART3_MQTT_Publish("battery/terminal", "[SYSTEM] STM32 BMS Online. MQTT Connected.");
+            } else {
+                UART_SendString("MQTT Connection failed!\r\n");
+                mqtt_connected = 0;
+            }
+        } else {
+            UART_SendString("MQTT Config not supported by ESP firmware!\r\n");
+            mqtt_connected = 0;
+        }
         return 1;
     }
     UART_SendString("Failed to connect to MONISH!\r\n");
     wifi_connected = 0;
+    mqtt_connected = 0;
     return 0;
 }
+
 
 void Measure_And_Print_Battery(float t1, float t2, float vib) {
     uint32_t raw_b1_sum = 0, raw_b2_sum = 0, raw_b3_sum = 0, raw_b4_sum = 0;
@@ -858,7 +894,60 @@ void Measure_And_Print_Battery(float t1, float t2, float vib) {
 
     // Update 16x2 I2C LCD with cell telemetry
     LCD_Update(cell1, cell2, cell3, cell4);
+
+    // Periodically publish telemetry and terminal logs to MQTT
+    static uint32_t last_pub_tick = 0;
+    uint32_t current_tick = HAL_GetTick();
+    if (mqtt_connected && (current_tick - last_pub_tick >= 3000)) {
+        last_pub_tick = current_tick;
+        
+        char json[256];
+        int c1_i = (int)cell1; int c1_f = (int)((cell1 - c1_i)*100);
+        if (c1_f < 0) c1_f = -c1_f;
+        int c2_i = (int)cell2; int c2_f = (int)((cell2 - c2_i)*100);
+        if (c2_f < 0) c2_f = -c2_f;
+        int c3_i = (int)cell3; int c3_f = (int)((cell3 - c3_i)*100);
+        if (c3_f < 0) c3_f = -c3_f;
+        int c4_i = (int)cell4; int c4_f = (int)((cell4 - c4_i)*100);
+        if (c4_f < 0) c4_f = -c4_f;
+        
+        int curr_sign = (current_A < 0) ? -1 : 1;
+        float abs_curr = current_A * curr_sign;
+        int curr_i = (int)abs_curr; int curr_f = (int)((abs_curr - curr_i)*100);
+        if (curr_f < 0) curr_f = -curr_f;
+        const char* curr_sgn = (current_A < -0.15f) ? "-" : "";
+        
+        float max_t = (t1 > t2) ? t1 : t2;
+        int temp_i = (int)max_t; int temp_f = (int)((max_t - temp_i)*10);
+        if (temp_f < 0) temp_f = -temp_f;
+        
+        int gas_i = (int)ppm; int gas_f = (int)((ppm - gas_i)*100);
+        if (gas_f < 0) gas_f = -gas_f;
+        
+        const char* relay_status = (ml_isolation_signal == 1) ? "CONNECTED" : "DISCONNECTED";
+        
+        // Classify system state for web DB status field
+        const char* sys_status = "Healthy";
+        if ((max_t > 50.0f && max_t < 100.0f) || ppm > 350.0f) sys_status = "Critical";
+        else if ((max_t > 40.0f && max_t < 100.0f) || ppm > 150.0f) sys_status = "Warning";
+        
+        sprintf(json, "{\"cell1\":%d.%02d,\"cell2\":%d.%02d,\"cell3\":%d.%02d,\"cell4\":%d.%02d,\"current\":%s%d.%02d,\"temperature\":%d.%d,\"gas\":%d.%02d,\"status\":\"%s\",\"relay\":\"%s\"}",
+                c1_i, c1_f, c2_i, c2_f, c3_i, c3_f, c4_i, c4_f,
+                curr_sgn, curr_i, curr_f,
+                temp_i, temp_f,
+                gas_i, gas_f,
+                sys_status, relay_status);
+                
+        USART3_MQTT_Publish("battery/live", json);
+        
+        // Form the exact same terminal log string as USART2 and publish
+        char term_log[256];
+        sprintf(term_log, "[CALC ] Pack: %d.%02dV | Curr: %s%d.%02dA | SoC: %d%% | Status: %s | T1: %s | T2: %s | VIB: %s | CO: %d.%02dPPM | C1: %d.%02dV | C2: %d.%02dV | C3: %d.%02dV | C4: %d.%02dV", 
+                p_i, p_f, curr_sign_str, curr_i, curr_f, (int)current_soc, status_str, t1_str, t2_str, vib_str, ppm_i, ppm_f, c1_i, c1_f, c2_i, c2_f, c3_i, c3_f, c4_i, c4_f);
+        USART3_MQTT_Publish("battery/terminal", term_log);
+    }
 }
+
 /* USER CODE END 0 */
 
 /**
