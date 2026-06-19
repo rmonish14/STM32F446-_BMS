@@ -29,21 +29,24 @@ Due to `PB11` being internally dedicated to `VCAP1` (power regulation capacitor)
 | **RST** | **3.3V** | CN7 Pin 16 / CN6 Pin 4 | Reset (Pulled High) |
 
 ### 2. 16x2 LCD with PCF8574 I2C Backpack (I2C1)
-Connected to the standard I2C1 pins:
+Connected to the standard I2C1 pins (shared with MPU6050):
 
 | LCD/Backpack Pin | STM32 Pin | Arduino / Morpho Pin | Description |
 | :---: | :---: | :---: | --- |
 | **VCC** | **5V** | CN6 Pin 5 (5V) | 5V Power Supply |
 | **GND** | **GND** | CN6 Pin 6 / CN7 Pin 8 | Ground reference |
-| **SDA** | **PB9** | Arduino D14 / CN5 Pin 5 | I2C1 SDA |
-| **SCL** | **PB8** | Arduino D15 / CN5 Pin 6 | I2C1 SCL |
+| **SDA** | **PB7** | Arduino D12 / CN5 Pin 3 | I2C1 SDA (AF4) |
+| **SCL** | **PB6** | Arduino D10 / CN5 Pin 2 | I2C1 SCL (AF4) |
 
-### 3. Sensors & ADC Channels
-*   **Cell 1-4 Voltages:** Measured via ADC channels.
-*   **Current Sensor:** Connected to ADC. Idle voltage baseline at $1.241\text{V}$. Values below $1.241\text{V}$ represent charging (positive current direction); values above represent discharging (negative current direction).
-*   **Temperature (T1 & T2):** NTC thermistors.
-*   **Vibration Sensor (VIB):** Analog input.
-*   **Carbon Monoxide (CO):** MQ-7 gas sensor.
+### 3. Sensors, Relays & Interfaces
+*   **Cell Voltages:** Cell 1 to 4 tap voltage dividers connected to ADC1 channels 11, 12, 13, and 14 on pins **PC1, PC2, PC3, and PC4**.
+*   **Current Sensor:** ACS712-20A analog current sensor connected to ADC1 channel 15 on pin **PC5**.
+*   **Carbon Monoxide (CO):** MQ-7 gas sensor analog output connected to ADC1 channel 10 on pin **PC0**.
+*   **Temperature (T1 & T2):** DS18B20 One-Wire digital sensors connected to pins **PB8 and PB9** respectively (require external $4.7\text{ k}\Omega$ pull-up resistors).
+*   **Vibration Sensor (VIB):** MPU6050 6-DOF IMU module connected on the I2C1 bus (shared SCL **PB6** and SDA **PB7**).
+*   **Relays:** Active cooling relay controlled by **PB12**; main pack isolation relay controlled by **PB13** (driven via low-side MOSFET drivers).
+*   **User Controls:** Screen page toggle buttons on **PC13** (onboard blue button) and **PA10** (external page cycle button).
+
 
 ---
 
