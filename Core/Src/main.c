@@ -565,6 +565,10 @@ uint8_t ESP_WaitForResponse(const char* expected, uint32_t timeout_ms) {
             // Echo raw character to debug UART (USART2)
             UART_SendChar(c);
             
+            // Skip null bytes: binary MQTT broker data (e.g. CONNACK \x00\x00)
+            // can poison strstr() which stops searching at '\0'
+            if (c == '\0') continue;
+            
             match_buf[idx++] = c;
             match_buf[idx] = '\0';
             
@@ -581,26 +585,151 @@ uint8_t ESP_WaitForResponse(const char* expected, uint32_t timeout_ms) {
     return 0;
 }
 
-void USART3_MQTT_Publish(const char* topic, const char* payload) {
-    if (!wifi_connected) return;
-    int len = strlen(payload);
-    char cmd[128];
-    sprintf(cmd, "AT+MQTTPUBRAW=0,\"%s\",%d,0,0\r\n", topic, len);
+// --- Raw TCP MQTT 3.1.1 implementation (works on any ESP8266 firmware) ---
+// Encodes MQTT variable-length remaining length field into buf, returns byte count
+static uint8_t MQTT_EncodeLength(uint32_t length, uint8_t *buf) {
+    uint8_t count = 0;
+    do {
+        buf[count] = (uint8_t)(length & 0x7F);
+        length >>= 7;
+        if (length > 0) buf[count] |= 0x80;
+        count++;
+    } while (length > 0 && count < 4);
+    return count;
+}
+
+// Sends raw bytes over the open TCP connection via AT+CIPSEND
+static uint8_t ESP_CIPSend(const uint8_t *data, uint16_t len) {
+    char cmd[32];
+    sprintf(cmd, "AT+CIPSEND=%u\r\n", (unsigned)len);
     USART3_SendString(cmd);
-    if (ESP_WaitForResponse(">", 1000)) {
-        USART3_SendString(payload);
-        ESP_WaitForResponse("OK", 2000);
+    if (!ESP_WaitForResponse(">", 2000)) return 0;
+    for (uint16_t i = 0; i < len; i++) USART3_SendChar((char)data[i]);
+    return ESP_WaitForResponse("SEND OK", 5000);
+}
+
+// Sends MQTT CONNECT and waits for both SEND OK and CONNACK (+IPD) in ONE scan.
+// Critical: on fast networks the broker's CONNACK arrives BEFORE "SEND OK",
+// so sequential waits miss it. A single loop detects whichever arrives first.
+// Returns 1 if CONNACK was received within 10s, 0 on timeout.
+static uint8_t MQTT_ConnectAndAwaitConnack(const char *client_id) {
+    static uint8_t pkt[128];
+    uint16_t cid_len = (uint16_t)strlen(client_id);
+    uint32_t remaining = 10 + 2 + cid_len;
+    uint16_t idx = 0;
+
+    pkt[idx++] = 0x10;
+    uint8_t lb[4]; uint8_t lc = MQTT_EncodeLength(remaining, lb);
+    for (uint8_t i = 0; i < lc; i++) pkt[idx++] = lb[i];
+    pkt[idx++] = 0x00; pkt[idx++] = 0x04;
+    pkt[idx++] = 'M'; pkt[idx++] = 'Q'; pkt[idx++] = 'T'; pkt[idx++] = 'T';
+    pkt[idx++] = 0x04;  // Protocol level: MQTT 3.1.1
+    pkt[idx++] = 0x02;  // Connect flags: Clean Session
+    pkt[idx++] = 0x00; pkt[idx++] = 0x3C; // Keep-alive 60s
+    pkt[idx++] = (uint8_t)(cid_len >> 8);
+    pkt[idx++] = (uint8_t)(cid_len & 0xFF);
+    for (uint16_t i = 0; i < cid_len; i++) pkt[idx++] = (uint8_t)client_id[i];
+
+    // Request data send
+    char cmd[32];
+    sprintf(cmd, "AT+CIPSEND=%u\r\n", (unsigned)idx);
+    USART3_SendString(cmd);
+    if (!ESP_WaitForResponse(">", 2000)) return 0;
+
+    // Transmit MQTT CONNECT bytes
+    for (uint16_t i = 0; i < idx; i++) USART3_SendChar((char)pkt[i]);
+
+    // Wait up to 10s for BOTH "SEND OK" and CONNACK "+IPD" in a single scan.
+    // We must not exit on SEND OK alone - CONNACK may not have arrived yet.
+    // We must not scan sequentially - CONNACK may arrive before SEND OK.
+    uint8_t got_send_ok = 0, got_connack = 0;
+    static char wbuf[256];
+    uint16_t widx = 0;
+    wbuf[0] = '\0';
+    uint32_t start = HAL_GetTick();
+
+    while ((HAL_GetTick() - start) < 10000) {
+        if (esp_rx_tail != esp_rx_head) {
+            char c = esp_rx_buffer[esp_rx_tail];
+            esp_rx_tail = (esp_rx_tail + 1) % ESP_RX_BUF_SIZE;
+            UART_SendChar(c);
+            if (c == '\0') continue; // skip null bytes from binary broker data
+            wbuf[widx++] = c;
+            wbuf[widx]   = '\0';
+            if (!got_send_ok && strstr(wbuf, "SEND OK")) got_send_ok = 1;
+            if (!got_connack && strstr(wbuf, "+IPD"))    got_connack = 1;
+            // Once both are confirmed, stop immediately
+            if (got_send_ok && got_connack) break;
+            // Slide window to keep buffer from overflowing
+            if (widx >= 255) { memmove(wbuf, &wbuf[1], widx - 1); widx--; }
+        }
+    }
+
+    if (got_connack) {
+        // Allow remaining CONNACK binary bytes to arrive then discard them
+        // so null bytes don't bleed into the next AT+CIPSEND ">" search
+        HAL_Delay(300);
+        esp_rx_tail = esp_rx_head;
+    }
+
+    return got_connack;
+}
+
+// Builds and sends a MQTT 3.1.1 PUBLISH packet (QoS 0, no retain)
+static uint8_t MQTT_SendPublish(const char *topic, const char *payload) {
+    static uint8_t pkt[512];
+    uint16_t tlen = (uint16_t)strlen(topic);
+    uint16_t plen = (uint16_t)strlen(payload);
+    uint32_t remaining = 2 + tlen + plen; // topic length field + topic + payload
+    uint16_t idx = 0;
+
+    pkt[idx++] = 0x30;                             // Fixed header: PUBLISH QoS 0
+    uint8_t lb[4]; uint8_t lc = MQTT_EncodeLength(remaining, lb);
+    for (uint8_t i = 0; i < lc; i++) pkt[idx++] = lb[i];
+    pkt[idx++] = (uint8_t)(tlen >> 8);
+    pkt[idx++] = (uint8_t)(tlen & 0xFF);
+    for (uint16_t i = 0; i < tlen; i++) pkt[idx++] = (uint8_t)topic[i];
+    for (uint16_t i = 0; i < plen; i++) pkt[idx++] = (uint8_t)payload[i];
+
+    return ESP_CIPSend(pkt, idx);
+}
+
+void USART3_MQTT_Publish(const char* topic, const char* payload) {
+    if (!wifi_connected || !mqtt_connected) return;
+    if (!MQTT_SendPublish(topic, payload)) {
+        // TCP connection likely dropped - mark disconnected for reconnect
+        UART_SendString("[MQTT] Publish failed - TCP connection lost\r\n");
+        mqtt_connected = 0;
     }
 }
 
 uint8_t ESP_ConnectWiFi(void) {
 
     UART_SendString("Testing ESP-01S UART...\r\n");
-    
-    // Test AT command first
-    USART3_SendString("AT\r\n");
-    if (!ESP_WaitForResponse("OK", 2000)) {
-        UART_SendString("ESP-01S not responding to AT!\r\n");
+
+    // Wait for ESP-01S to finish booting (esp8266 takes ~1-2s after power-on).
+    // During boot it emits garbage at 74880 baud that fills the ring buffer -
+    // flushing after the wait discards all that before the real AT test.
+    HAL_Delay(2000);
+    esp_rx_tail = esp_rx_head; // flush boot garbage
+
+    // Try AT up to 5 times (1s apart) to handle slow-starting modules
+    uint8_t at_ok = 0;
+    for (uint8_t at_try = 0; at_try < 5; at_try++) {
+        USART3_SendString("AT\r\n");
+        if (ESP_WaitForResponse("OK", 1500)) {
+            at_ok = 1;
+            break;
+        }
+        char retry_msg[32];
+        sprintf(retry_msg, "AT retry %d/5...\r\n", at_try + 1);
+        UART_SendString(retry_msg);
+        HAL_Delay(500);
+        esp_rx_tail = esp_rx_head; // flush between retries
+    }
+
+    if (!at_ok) {
+        UART_SendString("ESP-01S not responding to AT! Check wiring/baud.\r\n");
         return 0;
     }
     
@@ -615,39 +744,34 @@ uint8_t ESP_ConnectWiFi(void) {
         UART_SendString("Connected to MONISH successfully!\r\n");
         wifi_connected = 1;
         
-        // Allow ESP-01S internal connection states and IP routing to stabilize
-        HAL_Delay(2000);
-        
-        // MQTT setup
-        UART_SendString("Configuring HiveMQ MQTT Broker connection...\r\n");
-        char mqtt_cfg[128];
-        // Use a unique client ID using system tick timer to prevent connection rejection by the broker
-        sprintf(mqtt_cfg, "AT+MQTTUSERCFG=0,1,\"stm32_bms_%lu\",\"\",\"\",0,0,\"\"\r\n", HAL_GetTick());
-        USART3_SendString(mqtt_cfg);
-        
-        if (ESP_WaitForResponse("OK", 2000)) {
-            uint8_t retry = 3;
-            mqtt_connected = 0;
-            while (retry > 0) {
-                UART_SendString("Connecting to HiveMQ MQTT Broker...\r\n");
-                USART3_SendString("AT+MQTTCONN=0,\"broker.hivemq.com\",1883,0\r\n");
-                if (ESP_WaitForResponse("OK", 6000)) {
-                    UART_SendString("Connected to MQTT Broker successfully!\r\n");
-                    mqtt_connected = 1;
-                    break;
-                } else {
-                    UART_SendString("MQTT Connection failed, retrying in 2 seconds...\r\n");
-                    retry--;
-                    HAL_Delay(2000);
-                }
-            }
-            
-            if (mqtt_connected) {
-                // Publish boot log
+        // Allow 3s for IP stack to stabilise after WiFi join
+        HAL_Delay(3000);
+
+        // --- Raw TCP MQTT connection (bypasses AT+MQTT* firmware requirement) ---
+        // Step 1: Ensure single-connection mode
+        UART_SendString("[MQTT] Setting single TCP mode...\r\n");
+        USART3_SendString("AT+CIPMUX=0\r\n");
+        ESP_WaitForResponse("OK", 2000);
+
+        // Step 2: Open TCP connection to HiveMQ public broker
+        UART_SendString("[MQTT] Opening TCP to broker.hivemq.com:1883...\r\n");
+        USART3_SendString("AT+CIPSTART=\"TCP\",\"broker.hivemq.com\",1883\r\n");
+        if (ESP_WaitForResponse("CONNECT", 15000)) {
+            UART_SendString("[MQTT] TCP connected. Sending MQTT CONNECT packet...\r\n");
+
+            // Step 3: Send MQTT CONNECT and wait for CONNACK in one combined scan
+            char client_id[32];
+            sprintf(client_id, "stm32_%lu", HAL_GetTick());
+            if (MQTT_ConnectAndAwaitConnack(client_id)) {
+                UART_SendString("[MQTT] CONNACK received! Broker connected.\r\n");
+                mqtt_connected = 1;
                 USART3_MQTT_Publish("battery/terminal", "[SYSTEM] STM32 BMS Online. MQTT Connected.");
+            } else {
+                UART_SendString("[MQTT] No CONNACK from broker (timeout).\r\n");
+                mqtt_connected = 0;
             }
         } else {
-            UART_SendString("MQTT Config not supported by ESP firmware or busy!\r\n");
+            UART_SendString("[MQTT] TCP connect to broker failed.\r\n");
             mqtt_connected = 0;
         }
         return 1;
@@ -714,20 +838,50 @@ void Measure_And_Print_Battery(float t1, float t2, float vib) {
         if (tap_v4 < 0.0f) tap_v4 = 0.0f;
     }
     
-    float cell1 = 0.0f;
-    float cell2 = 0.0f;
-    float cell3 = 0.0f;
-    float cell4 = 0.0f;
-
-    if (tap_v1 > 0.0f) { cell1 = tap_v1; }
-    if (tap_v2 > 0.0f) { if (tap_v1 > 0.0f) { cell2 = tap_v2 - tap_v1; } else { cell2 = tap_v2; } }
-    if (tap_v3 > 0.0f) { if (tap_v2 > 0.0f) { cell3 = tap_v3 - tap_v2; } else if (tap_v1 > 0.0f) { cell3 = tap_v3 - tap_v1; } else { cell3 = tap_v3; } }
-    if (tap_v4 > 0.0f) { if (tap_v3 > 0.0f) { cell4 = tap_v4 - tap_v3; } else if (tap_v2 > 0.0f) { cell4 = tap_v4 - tap_v2; } else if (tap_v1 > 0.0f) { cell4 = tap_v4 - tap_v1; } else { cell4 = tap_v4; } }
+    // Dynamic open-wire & rewired pack cell voltage calculation
+    float tap[5] = {0.0f, tap_v1, tap_v2, tap_v3, tap_v4};
+    float cell[5] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    uint8_t tap_active[5] = {1, 0, 0, 0, 0}; // GND (tap 0) is always active
+    
+    if (tap_v1 > 0.25f) tap_active[1] = 1;
+    if (tap_v2 > 0.25f) tap_active[2] = 1;
+    if (tap_v3 > 0.25f) tap_active[3] = 1;
+    if (tap_v4 > 0.25f) tap_active[4] = 1;
+    
+    int prev_active = 0;
+    for (int i = 1; i <= 4; i++) {
+        if (tap_active[i]) {
+            int span = i - prev_active;
+            float total_v = tap[i] - tap[prev_active];
+            float avg_v = total_v / (float)span;
+            
+            if (span > 1 && avg_v >= 2.5f && avg_v <= 4.5f) {
+                // Intermediate tap is disconnected, distribute voltage equally
+                for (int k = prev_active + 1; k <= i; k++) {
+                    cell[k] = avg_v;
+                }
+            } else {
+                // Normal cell or absent cells (average voltage is too low to be active cells in series)
+                // Set the current cell to total_v, and lower cells in the span to 0
+                for (int k = prev_active + 1; k < i; k++) {
+                    cell[k] = 0.0f;
+                }
+                cell[i] = total_v;
+            }
+            prev_active = i;
+        }
+    }
+    
+    float cell1 = cell[1];
+    float cell2 = cell[2];
+    float cell3 = cell[3];
+    float cell4 = cell[4];
     
     if(cell1 < 0.0f) cell1 = 0.0f;
     if(cell2 < 0.0f) cell2 = 0.0f;
     if(cell3 < 0.0f) cell3 = 0.0f;
     if(cell4 < 0.0f) cell4 = 0.0f;
+
     
     float pack_voltage = cell1 + cell2 + cell3 + cell4;
     
