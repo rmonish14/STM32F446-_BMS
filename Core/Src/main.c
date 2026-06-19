@@ -98,10 +98,11 @@ void Delay_us(uint32_t us) {
     while ((*DWT_CYCCNT - startTick) < delayTicks);
 }
 
-#define SCALE_B1 1.4504f
-#define SCALE_B2 3.1075f
-#define SCALE_B3 4.3267f
-#define SCALE_B4 5.8130f
+#define SCALE_B1 1.4483f
+#define SCALE_B2 3.1037f
+#define SCALE_B3 4.1534f
+#define SCALE_B4 5.5140f
+
 
 
 // PB12: Cooling Relay
