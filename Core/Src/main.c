@@ -838,50 +838,36 @@ void Measure_And_Print_Battery(float t1, float t2, float vib) {
         if (tap_v4 < 0.0f) tap_v4 = 0.0f;
     }
     
-    // Dynamic open-wire & rewired pack cell voltage calculation
-    float tap[5] = {0.0f, tap_v1, tap_v2, tap_v3, tap_v4};
-    float cell[5] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
-    uint8_t tap_active[5] = {1, 0, 0, 0, 0}; // GND (tap 0) is always active
-    
-    if (tap_v1 > 0.25f) tap_active[1] = 1;
-    if (tap_v2 > 0.25f) tap_active[2] = 1;
-    if (tap_v3 > 0.25f) tap_active[3] = 1;
-    if (tap_v4 > 0.25f) tap_active[4] = 1;
-    
-    int prev_active = 0;
-    for (int i = 1; i <= 4; i++) {
-        if (tap_active[i]) {
-            int span = i - prev_active;
-            float total_v = tap[i] - tap[prev_active];
-            float avg_v = total_v / (float)span;
-            
-            if (span > 1 && avg_v >= 2.5f && avg_v <= 4.5f) {
-                // Intermediate tap is disconnected, distribute voltage equally
-                for (int k = prev_active + 1; k <= i; k++) {
-                    cell[k] = avg_v;
-                }
-            } else {
-                // Normal cell or absent cells (average voltage is too low to be active cells in series)
-                // Set the current cell to total_v, and lower cells in the span to 0
-                for (int k = prev_active + 1; k < i; k++) {
-                    cell[k] = 0.0f;
-                }
-                cell[i] = total_v;
-            }
-            prev_active = i;
-        }
+    float cell1 = 0.0f;
+    float cell2 = 0.0f;
+    float cell3 = 0.0f;
+    float cell4 = 0.0f;
+
+    // Cell 1: Requires Tap 1 to be connected (>0.3V)
+    if (tap_v1 > 0.3f) {
+        cell1 = tap_v1;
     }
-    
-    float cell1 = cell[1];
-    float cell2 = cell[2];
-    float cell3 = cell[3];
-    float cell4 = cell[4];
+
+    // Cell 2: Requires both Tap 1 and Tap 2 to be connected
+    if (tap_v1 > 0.3f && tap_v2 > 0.3f) {
+        cell2 = tap_v2 - tap_v1;
+    }
+
+    // Cell 3: Requires both Tap 2 and Tap 3 to be connected
+    if (tap_v2 > 0.3f && tap_v3 > 0.3f) {
+        cell3 = tap_v3 - tap_v2;
+    }
+
+    // Cell 4: Requires both Tap 3 and Tap 4 to be connected
+    if (tap_v3 > 0.3f && tap_v4 > 0.3f) {
+        cell4 = tap_v4 - tap_v3;
+    }
+
     
     if(cell1 < 0.0f) cell1 = 0.0f;
     if(cell2 < 0.0f) cell2 = 0.0f;
     if(cell3 < 0.0f) cell3 = 0.0f;
     if(cell4 < 0.0f) cell4 = 0.0f;
-
     
     float pack_voltage = cell1 + cell2 + cell3 + cell4;
     
