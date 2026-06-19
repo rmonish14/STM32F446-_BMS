@@ -100,8 +100,9 @@ void Delay_us(uint32_t us) {
 
 #define SCALE_B1 1.4504f
 #define SCALE_B2 3.1075f
-#define SCALE_B3 4.1822f
-#define SCALE_B4 5.5632f
+#define SCALE_B3 4.3267f
+#define SCALE_B4 5.8130f
+
 
 // PB12: Cooling Relay
 #define COOLING_RELAY_ON()    (GPIOB->BSRR = (1U << 12)) 
@@ -843,26 +844,10 @@ void Measure_And_Print_Battery(float t1, float t2, float vib) {
     float cell3 = 0.0f;
     float cell4 = 0.0f;
 
-    // Cell 1: Requires Tap 1 to be connected (>0.3V)
-    if (tap_v1 > 0.3f) {
-        cell1 = tap_v1;
-    }
-
-    // Cell 2: Requires both Tap 1 and Tap 2 to be connected
-    if (tap_v1 > 0.3f && tap_v2 > 0.3f) {
-        cell2 = tap_v2 - tap_v1;
-    }
-
-    // Cell 3: Requires both Tap 2 and Tap 3 to be connected
-    if (tap_v2 > 0.3f && tap_v3 > 0.3f) {
-        cell3 = tap_v3 - tap_v2;
-    }
-
-    // Cell 4: Requires both Tap 3 and Tap 4 to be connected
-    if (tap_v3 > 0.3f && tap_v4 > 0.3f) {
-        cell4 = tap_v4 - tap_v3;
-    }
-
+    if (tap_v1 > 0.0f) { cell1 = tap_v1; }
+    if (tap_v2 > 0.0f) { if (tap_v1 > 0.0f) { cell2 = tap_v2 - tap_v1; } else { cell2 = tap_v2; } }
+    if (tap_v3 > 0.0f) { if (tap_v2 > 0.0f) { cell3 = tap_v3 - tap_v2; } else if (tap_v1 > 0.0f) { cell3 = tap_v3 - tap_v1; } else { cell3 = tap_v3; } }
+    if (tap_v4 > 0.0f) { if (tap_v3 > 0.0f) { cell4 = tap_v4 - tap_v3; } else if (tap_v2 > 0.0f) { cell4 = tap_v4 - tap_v2; } else if (tap_v1 > 0.0f) { cell4 = tap_v4 - tap_v1; } else { cell4 = tap_v4; } }
     
     if(cell1 < 0.0f) cell1 = 0.0f;
     if(cell2 < 0.0f) cell2 = 0.0f;
