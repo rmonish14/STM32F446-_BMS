@@ -128,6 +128,10 @@ void Delay_us(uint32_t us) {
 #define RED_LED_ON()          (GPIOB->BSRR = (1U << 15))
 #define RED_LED_OFF()         (GPIOB->BSRR = (1U << 31))
 
+// Safety Warning Buzzer (PB10)
+#define BUZZER_ON()           (GPIOB->BSRR = (1U << 10))
+#define BUZZER_OFF()          (GPIOB->BSRR = (1U << 26))
+
 
 // ACS712-20A Parameters
 float ACS712_ZERO_VOLTAGE = 1.241f; // Hardcoded no-load zero current voltage with external power supply
@@ -153,20 +157,20 @@ void BareMetal_Hardware_Init(void) {
     GPIOA->PUPDR &= ~(3U << (10 * 2));
     GPIOA->PUPDR |= (1U << (10 * 2));  
 
-    // Configure PB0, PB1, PB4, PB5, PB12, PB13, PB14, PB15 as Outputs
+    // Configure PB0, PB1, PB4, PB5, PB10, PB12, PB13, PB14, PB15 as Outputs
     GPIOB->MODER &= ~(3U << (0 * 2) | 3U << (1 * 2) | 3U << (4 * 2) | 3U << (5 * 2) |
-                      3U << (12 * 2) | 3U << (13 * 2) | 3U << (14 * 2) | 3U << (15 * 2));
+                      3U << (10 * 2) | 3U << (12 * 2) | 3U << (13 * 2) | 3U << (14 * 2) | 3U << (15 * 2));
     GPIOB->MODER |= (1U << (0 * 2) | 1U << (1 * 2) | 1U << (4 * 2) | 1U << (5 * 2) |
-                     1U << (12 * 2) | 1U << (13 * 2) | 1U << (14 * 2) | 1U << (15 * 2));   
+                     1U << (10 * 2) | 1U << (12 * 2) | 1U << (13 * 2) | 1U << (14 * 2) | 1U << (15 * 2));   
     GPIOB->OTYPER &= ~((1U << 0) | (1U << 1) | (1U << 4) | (1U << 5) |
-                       (1U << 12) | (1U << 13) | (1U << 14) | (1U << 15));         
+                       (1U << 10) | (1U << 12) | (1U << 13) | (1U << 14) | (1U << 15));         
     GPIOB->OSPEEDR |= (3U << (0 * 2) | 3U << (1 * 2) | 3U << (4 * 2) | 3U << (5 * 2) |
-                       3U << (12 * 2) | 3U << (13 * 2) | 3U << (14 * 2) | 3U << (15 * 2));  
+                       3U << (10 * 2) | 3U << (12 * 2) | 3U << (13 * 2) | 3U << (14 * 2) | 3U << (15 * 2));  
 
     // Set initial boot states: Cell Relays 1-4 ON, Isolation Relay ON, Green LED ON.
-    // Cooling Fan (PB12) OFF, Red LED (PB15) OFF.
+    // Cooling Fan (PB12) OFF, Buzzer (PB10) OFF, Red LED (PB15) OFF.
     GPIOB->BSRR = (1U << 0) | (1U << 1) | (1U << 4) | (1U << 5) | (1U << 13) | (1U << 14) |
-                  (1U << 28) | (1U << 31);
+                  (1U << 26) | (1U << 28) | (1U << 31);
 
 
     GPIOC->MODER |= (3U << (0 * 2)) | (3U << (1 * 2)) | (3U << (2 * 2)) | (3U << (3 * 2)) | (3U << (4 * 2)) | (3U << (5 * 2)); 
@@ -1085,9 +1089,9 @@ void Measure_And_Print_Battery(float t1, float t2, float vib) {
         CELL4_RELAY_OFF();
     }
 
-    // ─── Status Indication Lights (LEDs) ────────────────────────
+    // ─── Status Indication Lights & Alarm (LEDs & Buzzer) ────────
     // Green LED is ON for normal/healthy operation.
-    // Red LED is ON if there are safety warnings or critical faults (temperature, gas, or voltage breaches).
+    // Red LED and Buzzer are ON if there are safety warnings or critical faults (temperature, gas, or voltage breaches).
     float max_temp = (t1 > t2) ? t1 : t2;
     if (max_temp > 40.0f || ppm > 150.0f ||
         cell1 < 3.0f || cell1 > 4.25f ||
@@ -1097,9 +1101,11 @@ void Measure_And_Print_Battery(float t1, float t2, float vib) {
     {
         RED_LED_ON();
         GREEN_LED_OFF();
+        BUZZER_ON();
     } else {
         GREEN_LED_ON();
         RED_LED_OFF();
+        BUZZER_OFF();
     }
 
 
