@@ -903,16 +903,35 @@ void Measure_And_Print_Battery(float t1, float t2, float vib) {
             cell2 = v1 - v0;
         }
     } else if (active_count == 3) {
-        strcpy(detected_config, "3S");
-        cell1 = active_v[0];
-        cell2 = active_v[1] - active_v[0];
-        cell3 = active_v[2] - active_v[1];
+        float v0 = active_v[0];
+        float v2 = active_v[2];
+        if (v2 - v0 < 0.5f) {
+            strcpy(detected_config, "3P");
+            cell1 = active_v[0];
+            cell2 = active_v[1];
+            cell3 = active_v[2];
+        } else {
+            strcpy(detected_config, "3S");
+            cell1 = active_v[0];
+            cell2 = active_v[1] - active_v[0];
+            cell3 = active_v[2] - active_v[1];
+        }
     } else if (active_count == 4) {
-        strcpy(detected_config, "4S");
-        cell1 = tap_v1;
-        cell2 = tap_v2 - tap_v1;
-        cell3 = tap_v3 - tap_v2;
-        cell4 = tap_v4 - tap_v3;
+        float v0 = active_v[0];
+        float v3 = active_v[3];
+        if (v3 - v0 < 0.5f) {
+            strcpy(detected_config, "4P");
+            cell1 = tap_v1;
+            cell2 = tap_v2;
+            cell3 = tap_v3;
+            cell4 = tap_v4;
+        } else {
+            strcpy(detected_config, "4S");
+            cell1 = tap_v1;
+            cell2 = tap_v2 - tap_v1;
+            cell3 = tap_v3 - tap_v2;
+            cell4 = tap_v4 - tap_v3;
+        }
     }
 
     if(cell1 < 0.0f) cell1 = 0.0f;
@@ -1152,8 +1171,8 @@ void Measure_And_Print_Battery(float t1, float t2, float vib) {
         case 2: ILI9341_DrawPage2(pin_c1, pin_c2, pin_c3, pin_c4, pin_curr, pin_mq7, current_max_vib, current_ppm); break;
     }
 
-    // Update 16x2 I2C LCD with cell telemetry
-    LCD_Update(cell1, cell2, cell3, cell4);
+    // Update 16x2 I2C LCD with cell telemetry (displays raw tap voltages)
+    LCD_Update(tap_v1, tap_v2, tap_v3, tap_v4);
 
     // Periodically publish telemetry and terminal logs to MQTT
     static uint32_t last_pub_tick = 0;
