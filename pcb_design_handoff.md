@@ -84,10 +84,7 @@ Cell Tap (Cx) ───[ R_top ]───┬───[ R_filter ]─── Analo
 ```
 
 #### Divider Values (use 0.1% or 1% tolerance resistors):
-*   **Cell 1 (Max 4.2V):** $R_{\text{top}} = 4.48\text{ k}\Omega$, $R_{\text{bottom}} = 10\text{ k}\Omega$.
-*   **Cell 2 (Max 8.4V):** $R_{\text{top}} = 21.0\text{ k}\Omega$, $R_{\text{bottom}} = 10\text{ k}\Omega$.
-*   **Cell 3 (Max 12.6V):** $R_{\text{top}} = 31.5\text{ k}\Omega$, $R_{\text{bottom}} = 10\text{ k}\Omega$.
-*   **Cell 4 (Max 16.8V):** $R_{\text{top}} = 45.1\text{ k}\Omega$, $R_{\text{bottom}} = 10\text{ k}\Omega$.
+*   **Uniform Cell Taps 1, 2, 3, and 4 (Max 16.8V - 18.0V range):** All channels use identical dividers: $R_{\text{top}} = 100.0\text{ k}\Omega$, $R_{\text{bottom}} = 22.0\text{ k}\Omega$.
 *   **Low-pass Filter:** Place $R_{\text{filter}} = 1\text{ k}\Omega$ and $C_{\text{filter}} = 100\text{nF}$ (ceramic capacitor) as close to the STM32 pins as possible to filter out high-frequency noise from switching cells.
 
 ---

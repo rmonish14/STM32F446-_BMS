@@ -57,25 +57,13 @@ The following table lists all active pins on the STM32F446RE (LQFP64 package) us
 ## ⚡ 2. Signal Conditioning & External Circuit Guidelines
 
 ### A. Cell Voltage Measurement (Resistor Divider Networks)
-Since the ADC inputs are restricted to **0V - 3.3V**, you must scale the cell voltages using voltage dividers. The firmware uses the following software scale factors:
+Since the ADC inputs are restricted to **0V - 3.3V**, you must scale the cell tap voltages using voltage dividers. The firmware is configured so that **all 4 cell taps use identical voltage dividers** to allow any tap to read up to 16.8V max. The scale factor is calculated as:
 
 $$V_{tap} = V_{pin} \times \text{Scale Factor}$$
 
-Ensure your resistor dividers conform to the ratio $R_{\text{top}} / R_{\text{bottom}} = \text{Scale Factor} - 1$. Below are the suggested resistor configurations:
-
-*   **Cell 1 (Max 4.2V):** `SCALE_B1 = 1.4483`
-    *   *Ratio:* $R_{\text{top}}/R_{\text{bottom}} = 0.4483$
-    *   *Suggested resistors:* $R_{\text{top}} = 4.48\text{ k}\Omega$ (1% tolerance), $R_{\text{bottom}} = 10.0\text{ k}\Omega$ (1% tolerance).
-*   **Cell 2 (Max 8.4V):** `SCALE_B2 = 3.1037`
-    *   *Ratio:* $R_{\text{top}}/R_{\text{bottom}} = 2.1037$
-    *   *Suggested resistors:* $R_{\text{top}} = 21.0\text{ k}\Omega$ (1% tolerance), $R_{\text{bottom}} = 10.0\text{ k}\Omega$ (1% tolerance).
-*   **Cell 3 (Max 12.6V):** `SCALE_B3 = 4.1534`
-    *   *Ratio:* $R_{\text{top}}/R_{\text{bottom}} = 3.1534$
-    *   *Suggested resistors:* $R_{\text{top}} = 31.5\text{ k}\Omega$ (1% tolerance), $R_{\text{bottom}} = 10.0\text{ k}\Omega$ (1% tolerance).
-*   **Cell 4 (Max 16.8V):** `SCALE_B4 = 5.5140`
-    *   *Ratio:* $R_{\text{top}}/R_{\text{bottom}} = 4.5140$
-    *   *Suggested resistors:* $R_{\text{top}} = 45.1\text{ k}\Omega$ (1% tolerance), $R_{\text{bottom}} = 10.0\text{ k}\Omega$ (1% tolerance).
-
+*   **Uniform Cell Taps 1, 2, 3, and 4 (Max 16.8V - 18.0V range):** `SCALE_B1..B4 = 5.5455`
+    *   *Ratio:* $R_{\text{top}}/R_{\text{bottom}} = 4.5455$
+    *   *Suggested resistors:* $R_{\text{top}} = 100.0\text{ k}\Omega$ (1% tolerance), $R_{\text{bottom}} = 22.0\text{ k}\Omega$ (1% tolerance).
 
 > [!WARNING]
 > Use 1% precision metal film resistors for the dividers. Calibrate scaling factors in software if your specific resistor choices vary slightly from these target values to maintain ADC accuracy.

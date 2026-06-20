@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <string.h>
 
+extern char detected_config[8];
+
 // Standard 5x7 ASCII Font Table (covers characters 32 (space) to 126 (~))
 static const uint8_t font5x7[95][5] = {
     {0x00, 0x00, 0x00, 0x00, 0x00}, // (space)
@@ -449,8 +451,9 @@ void ILI9341_DrawPage0(float pack_v, float current, float t1, float t2, float vi
     ILI9341_FillRect(160, 30, 2, 210, TFT_GRID_GREY); // Vertical split
     ILI9341_FillRect(0, 135, 320, 2, TFT_GRID_GREY);  // Horizontal split
     
-    // --- TOP LEFT: Pack Voltage ---
-    ILI9341_DrawString(10, 38, "PACK VOLTAGE", TFT_LIGHT_GREY, TFT_BLACK, 1);
+    char pack_lbl[32];
+    sprintf(pack_lbl, "PACK VOLTAGE (%s)  ", detected_config);
+    ILI9341_DrawString(10, 38, pack_lbl, TFT_LIGHT_GREY, TFT_BLACK, 1);
     
     int v_i = (int)pack_v;
     int v_f = (int)((pack_v - v_i) * 100);

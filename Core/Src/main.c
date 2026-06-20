@@ -98,10 +98,12 @@ void Delay_us(uint32_t us) {
     while ((*DWT_CYCCNT - startTick) < delayTicks);
 }
 
-#define SCALE_B1 1.4483f
-#define SCALE_B2 3.1037f
-#define SCALE_B3 4.1534f
-#define SCALE_B4 5.5140f
+#define SCALE_B1 5.5455f
+#define SCALE_B2 5.5455f
+#define SCALE_B3 5.5455f
+#define SCALE_B4 5.5455f
+
+char detected_config[8] = "4S";
 
 
 
@@ -508,8 +510,8 @@ void LCD_Update(float c1, float c2, float c3, float c4) {
             memcpy(&line0[7], temp, strlen(temp));
         }
         
-        sprintf(temp, "%dS", active_cells);
-        memcpy(&line0[14], temp, strlen(temp));
+        sprintf(temp, "%-2s", detected_config);
+        memcpy(&line0[14], temp, 2);
         
         if (c3 > 0.5f) {
             int i_val = (int)c3; int f_val = (int)((c3 - i_val)*100); if (f_val < 0) f_val = -f_val;
@@ -853,35 +855,66 @@ void Measure_And_Print_Battery(float t1, float t2, float vib) {
     if(pin_v3 < 0.25f) tap_v3 = 0.0f;
     if(pin_v4 < 0.25f) tap_v4 = 0.0f;
 
-    if (tap_v1 > 0.0f) {
-        if (tap_v1 < 0.0f) tap_v1 = 0.0f;
-    }
-    if (tap_v2 > 0.0f) {
-        if (tap_v2 < 0.0f) tap_v2 = 0.0f;
-    }
-    if (tap_v3 > 0.0f) {
-        if (tap_v2 == 0.0f) {
-            tap_v3 -= 0.14f; // 1S single cell test mode offset
-        }
-        if (tap_v3 < 0.0f) tap_v3 = 0.0f;
-    }
-    if (tap_v4 > 0.0f) {
-        if (tap_v3 == 0.0f) {
-            tap_v4 -= 0.18f; // 1S single cell test mode offset
-        }
-        if (tap_v4 < 0.0f) tap_v4 = 0.0f;
-    }
-    
+    // ─── Physical Cell Voltages (based on physical taps) ────────────────────────
+    float phys_c1 = 0.0f;
+    float phys_c2 = 0.0f;
+    float phys_c3 = 0.0f;
+    float phys_c4 = 0.0f;
+
+    if (tap_v1 > 0.0f) { phys_c1 = tap_v1; }
+    if (tap_v2 > 0.0f) { if (tap_v1 > 0.0f) { phys_c2 = tap_v2 - tap_v1; } else { phys_c2 = tap_v2; } }
+    if (tap_v3 > 0.0f) { if (tap_v2 > 0.0f) { phys_c3 = tap_v3 - tap_v2; } else if (tap_v1 > 0.0f) { phys_c3 = tap_v3 - tap_v1; } else { phys_c3 = tap_v3; } }
+    if (tap_v4 > 0.0f) { if (tap_v3 > 0.0f) { phys_c4 = tap_v4 - tap_v3; } else if (tap_v2 > 0.0f) { phys_c4 = tap_v4 - tap_v2; } else if (tap_v1 > 0.0f) { phys_c4 = tap_v4 - tap_v1; } else { phys_c4 = tap_v4; } }
+
+    if(phys_c1 < 0.0f) phys_c1 = 0.0f;
+    if(phys_c2 < 0.0f) phys_c2 = 0.0f;
+    if(phys_c3 < 0.0f) phys_c3 = 0.0f;
+    if(phys_c4 < 0.0f) phys_c4 = 0.0f;
+
+    // ─── Dynamic Cell Configuration Detection ─────────────────────────────────
+    float active_v[4] = {0.0f};
+    int active_count = 0;
+
+    if (tap_v1 > 0.0f) { active_v[active_count] = tap_v1; active_count++; }
+    if (tap_v2 > 0.0f) { active_v[active_count] = tap_v2; active_count++; }
+    if (tap_v3 > 0.0f) { active_v[active_count] = tap_v3; active_count++; }
+    if (tap_v4 > 0.0f) { active_v[active_count] = tap_v4; active_count++; }
+
     float cell1 = 0.0f;
     float cell2 = 0.0f;
     float cell3 = 0.0f;
     float cell4 = 0.0f;
 
-    if (tap_v1 > 0.0f) { cell1 = tap_v1; }
-    if (tap_v2 > 0.0f) { if (tap_v1 > 0.0f) { cell2 = tap_v2 - tap_v1; } else { cell2 = tap_v2; } }
-    if (tap_v3 > 0.0f) { if (tap_v2 > 0.0f) { cell3 = tap_v3 - tap_v2; } else if (tap_v1 > 0.0f) { cell3 = tap_v3 - tap_v1; } else { cell3 = tap_v3; } }
-    if (tap_v4 > 0.0f) { if (tap_v3 > 0.0f) { cell4 = tap_v4 - tap_v3; } else if (tap_v2 > 0.0f) { cell4 = tap_v4 - tap_v2; } else if (tap_v1 > 0.0f) { cell4 = tap_v4 - tap_v1; } else { cell4 = tap_v4; } }
-    
+    if (active_count == 0) {
+        strcpy(detected_config, "0S");
+    } else if (active_count == 1) {
+        strcpy(detected_config, "1S");
+        cell1 = active_v[0];
+    } else if (active_count == 2) {
+        float v0 = active_v[0];
+        float v1 = active_v[1];
+        if (v1 - v0 < 0.5f) {
+            strcpy(detected_config, "2P");
+            cell1 = v0;
+            cell2 = v1;
+        } else {
+            strcpy(detected_config, "2S");
+            cell1 = v0;
+            cell2 = v1 - v0;
+        }
+    } else if (active_count == 3) {
+        strcpy(detected_config, "3S");
+        cell1 = active_v[0];
+        cell2 = active_v[1] - active_v[0];
+        cell3 = active_v[2] - active_v[1];
+    } else if (active_count == 4) {
+        strcpy(detected_config, "4S");
+        cell1 = tap_v1;
+        cell2 = tap_v2 - tap_v1;
+        cell3 = tap_v3 - tap_v2;
+        cell4 = tap_v4 - tap_v3;
+    }
+
     if(cell1 < 0.0f) cell1 = 0.0f;
     if(cell2 < 0.0f) cell2 = 0.0f;
     if(cell3 < 0.0f) cell3 = 0.0f;
@@ -1063,42 +1096,46 @@ void Measure_And_Print_Battery(float t1, float t2, float vib) {
     }
 
     // ─── Cell Protection Relays ─────────────────────────────────
-    // Keep individual cell relay ON if the cell voltage is within safe operational limits (3.0V - 4.25V).
-    // Trip (turn OFF) the relay if the cell falls into undervoltage or climbs into overvoltage.
-    if (cell1 >= 3.0f && cell1 <= 4.25f) {
-        CELL1_RELAY_ON();
-    } else {
+    // Keep individual cell relay ON by default if no cell is connected.
+    // Trip (turn OFF) the relay if the cell voltage is active but out of bounds (3.0V - 4.25V).
+    if (phys_c1 > 0.5f && (phys_c1 < 3.0f || phys_c1 > 4.25f)) {
         CELL1_RELAY_OFF();
+    } else {
+        CELL1_RELAY_ON();
     }
 
-    if (cell2 >= 3.0f && cell2 <= 4.25f) {
-        CELL2_RELAY_ON();
-    } else {
+    if (phys_c2 > 0.5f && (phys_c2 < 3.0f || phys_c2 > 4.25f)) {
         CELL2_RELAY_OFF();
+    } else {
+        CELL2_RELAY_ON();
     }
 
-    if (cell3 >= 3.0f && cell3 <= 4.25f) {
-        CELL3_RELAY_ON();
-    } else {
+    if (phys_c3 > 0.5f && (phys_c3 < 3.0f || phys_c3 > 4.25f)) {
         CELL3_RELAY_OFF();
+    } else {
+        CELL3_RELAY_ON();
     }
 
-    if (cell4 >= 3.0f && cell4 <= 4.25f) {
-        CELL4_RELAY_ON();
-    } else {
+    if (phys_c4 > 0.5f && (phys_c4 < 3.0f || phys_c4 > 4.25f)) {
         CELL4_RELAY_OFF();
+    } else {
+        CELL4_RELAY_ON();
     }
 
     // ─── Status Indication Lights & Alarm (LEDs & Buzzer) ────────
     // Green LED is ON for normal/healthy operation.
-    // Red LED and Buzzer are ON if there are safety warnings or critical faults (temperature, gas, or voltage breaches).
+    // Red LED and Buzzer are ON if there are safety warnings or critical faults (temperature, gas, or voltage breaches on active cells).
     float max_temp = (t1 > t2) ? t1 : t2;
-    if (max_temp > 40.0f || ppm > 150.0f ||
-        cell1 < 3.0f || cell1 > 4.25f ||
-        cell2 < 3.0f || cell2 > 4.25f ||
-        cell3 < 3.0f || cell3 > 4.25f ||
-        cell4 < 3.0f || cell4 > 4.25f) 
-    {
+    int has_fault = 0;
+    if (max_temp > 40.0f || ppm > 150.0f) {
+        has_fault = 1;
+    }
+    if (phys_c1 > 0.5f && (phys_c1 < 3.0f || phys_c1 > 4.25f)) has_fault = 1;
+    if (phys_c2 > 0.5f && (phys_c2 < 3.0f || phys_c2 > 4.25f)) has_fault = 1;
+    if (phys_c3 > 0.5f && (phys_c3 < 3.0f || phys_c3 > 4.25f)) has_fault = 1;
+    if (phys_c4 > 0.5f && (phys_c4 < 3.0f || phys_c4 > 4.25f)) has_fault = 1;
+
+    if (has_fault) {
         RED_LED_ON();
         GREEN_LED_OFF();
         BUZZER_ON();
