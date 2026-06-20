@@ -25,35 +25,48 @@ The BMS operates across three voltage domains. It is critical to isolate high-no
 
 ## 📌 2. Pin Assignment Master Table
 
-| STM32 Pin | Port/Mode | Target Component | Description / Signal Characteristics |
-| :---: | :---: | :---: | :--- |
-| **PC1** | `ADC1_IN11` | Cell 1 Tap | Cell 1 voltage divider tap ($0\text{V} - 4.2\text{V}$). |
-| **PC2** | `ADC1_IN12` | Cell 2 Tap | Cell 2 voltage divider tap ($0\text{V} - 8.4\text{V}$). |
-| **PC3** | `ADC1_IN13` | Cell 3 Tap | Cell 3 voltage divider tap ($0\text{V} - 12.6\text{V}$). |
-| **PC4** | `ADC1_IN14` | Cell 4 Tap | Cell 4 voltage divider tap ($0\text{V} - 16.8\text{V}$). |
-| **PC5** | `ADC1_IN15` | ACS758 Out | Current sensor output ($0.6\text{V} - 2.5\text{V}$). |
-| **PC0** | `ADC1_IN10` | MQ-7 Out | Gas sensor analog output ($0\text{V} - 5\text{V}$). |
-| **PB6** | `I2C1_SCL` | 16x2 LCD & MPU6050 | Shared I2C Clock line. |
-| **PB7** | `I2C1_SDA` | 16x2 LCD & MPU6050 | Shared I2C Data line. |
-| **PB8** | GPIO (1-Wire) | Temp Sensor 1 (DS18B20) | One-Wire bus for Temp 1. |
-| **PB9** | GPIO (1-Wire) | Temp Sensor 2 (DS18B20) | One-Wire bus for Temp 2. |
-| **PC10** | `USART3_TX` | ESP-01S RX | UART TX to Wi-Fi. |
-| **PC11** | `USART3_RX` | ESP-01S TX | UART RX from Wi-Fi. |
-| **PA5** | `SPI1_SCK` | ILI9341 SCK | SPI Clock to TFT display. |
-| **PA7** | `SPI1_MOSI` | ILI9341 MOSI | SPI Data to TFT display. |
-| **PA4** | GPIO Output | ILI9341 CS | Chip Select (Active Low). |
-| **PA6** | GPIO Output | ILI9341 D/C | Data / Command control line. |
-| **PA1** | GPIO Output | ILI9341 RST | Display Reset line (Active Low). |
-| **PB0** | GPIO Output | Cell 1 Relay | Low-side driver for Cell 1 relay. |
-| **PB1** | GPIO Output | Cell 2 Relay | Low-side driver for Cell 2 relay. |
-| **PB4** | GPIO Output | Cell 3 Relay | Low-side driver for Cell 3 relay. |
-| **PB5** | GPIO Output | Cell 4 Relay | Low-side driver for Cell 4 relay. |
-| **PB12** | GPIO Output | Fan Relay | Low-side driver for cooling fan relay. |
-| **PB13** | GPIO Output | Isolation Relay | Low-side driver for pack isolation relay. |
-| **PB14** | GPIO Output | Green Status LED | System healthy status light. |
-| **PB15** | GPIO Output | Red Warning LED | Alarm/Warning status light. |
-| **PB10** | GPIO Output | Buzzer | Alarm Buzzer output. |
-| **PA10** | GPIO Input | Page Button | Page selection button (Active Low). |
+| STM32 Pin | LQFP64 Pin | Port/Mode | Target Component | Description / Signal Characteristics |
+| :---: | :---: | :---: | :---: | :--- |
+| **PC1** | **9** | `ADC1_IN11` | Cell 1 Tap | Cell 1 voltage divider tap ($0\text{V} - 4.2\text{V}$). |
+| **PC2** | **10** | `ADC1_IN12` | Cell 2 Tap | Cell 2 voltage divider tap ($0\text{V} - 8.4\text{V}$). |
+| **PC3** | **11** | `ADC1_IN13` | Cell 3 Tap | Cell 3 voltage divider tap ($0\text{V} - 12.6\text{V}$). |
+| **PC4** | **24** | `ADC1_IN14` | Cell 4 Tap | Cell 4 voltage divider tap ($0\text{V} - 16.8\text{V}$). |
+| **PC5** | **25** | `ADC1_IN15` | ACS758 Out | Current sensor output ($0.6\text{V} - 2.5\text{V}$). |
+| **PC0** | **8** | `ADC1_IN10` | MQ-7 Out | Gas sensor analog output ($0\text{V} - 5\text{V}$). |
+| **PB6** | **58** | `I2C1_SCL` | 16x2 LCD & MPU6050 | Shared I2C Clock line. |
+| **PB7** | **59** | `I2C1_SDA` | 16x2 LCD & MPU6050 | Shared I2C Data line. |
+| **PB8** | **61** | GPIO (1-Wire) | Temp Sensor 1 (DS18B20) | One-Wire bus for Temp 1. |
+| **PB9** | **62** | GPIO (1-Wire) | Temp Sensor 2 (DS18B20) | One-Wire bus for Temp 2. |
+| **PC10** | **51** | `USART3_TX` | ESP-01S RX | UART TX to Wi-Fi. |
+| **PC11** | **52** | `USART3_RX` | ESP-01S TX | UART RX from Wi-Fi. |
+| **PA5** | **21** | `SPI1_SCK` | ILI9341 SCK | SPI Clock to TFT display. |
+| **PA7** | **23** | `SPI1_MOSI` | ILI9341 MOSI | SPI Data to TFT display. |
+| **PA4** | **20** | GPIO Output | ILI9341 CS | Chip Select (Active Low). |
+| **PA6** | **22** | GPIO Output | ILI9341 D/C | Data / Command control line. |
+| **PA1** | **15** | GPIO Output | ILI9341 RST | Display Reset line (Active Low). |
+| **PB0** | **26** | GPIO Output | Cell 1 Relay | Low-side driver for Cell 1 relay. |
+| **PB1** | **27** | GPIO Output | Cell 2 Relay | Low-side driver for Cell 2 relay. |
+| **PB4** | **56** | GPIO Output | Cell 3 Relay | Low-side driver for Cell 3 relay. |
+| **PB5** | **57** | GPIO Output | Cell 4 Relay | Low-side driver for Cell 4 relay. |
+| **PB12** | **33** | GPIO Output | Fan Relay | Low-side driver for cooling fan relay. |
+| **PB13** | **34** | GPIO Output | Isolation Relay | Low-side driver for pack isolation relay. |
+| **PB14** | **35** | GPIO Output | Green Status LED | System healthy status light. |
+| **PB15** | **36** | GPIO Output | Red Warning LED | Alarm/Warning status light. |
+| **PB10** | **29** | GPIO Output | Buzzer | Alarm Buzzer output. |
+| **PA10** | **43** | GPIO Input | Page Button | Page selection button (Active Low). |
+| **PA2** | **16** | `USART2_TX` | PC Serial Debug | Connects to PC debug console. |
+| **PA3** | **17** | `USART2_RX` | PC Serial Debug | Connects to PC debug console. |
+| **PC13** | **2** | GPIO Input | User Button 1 | Alternate page toggle button (Active Low). |
+
+### 🔌 Power & System Support Connections (LQFP64)
+*   **VDD (3.3V Digital Power):** Pins 19, 32, 48, 64 (require a 100nF decoupling capacitor close to each pin).
+*   **VSS (Digital Ground):** Pins 18, 31, 47, 63.
+*   **VDDA (3.3V Analog Power):** Pin 13 (analog supply for ADC. Filter with a ferrite bead and decoupling capacitor).
+*   **VSSA (Analog Ground):** Pin 12 (analog ground return path. Connect to system ground at a single star point).
+*   **VBAT (Backup Power):** Pin 1 (connect to VDD if unused).
+*   **BOOT0 (Boot Select):** Pin 60 (pull down to GND using a 10k resistor).
+*   **NRST (Reset):** Pin 7 (connect to 3.3V via 10k pull-up and 100nF capacitor to GND).
+*   **VCAP_1 (Internal Regulator Cap):** Pin 30 (must connect to a 4.7µF low-ESR ceramic capacitor to GND).
 
 ---
 

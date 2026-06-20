@@ -6,40 +6,50 @@ This guide compiles all STM32 pin configurations, peripheral roles, voltage cons
 
 ## 📌 1. STM32 Pin Assignment Master Table
 
-The following table lists all active pins on the STM32F446RE (LQFP64 package) used in the BMS firmware:
+The following table lists all active pins on the STM32F446RE (LQFP64 package) used in the BMS firmware, including their physical IC pin numbers:
 
-| Pin | Function / Mode | Connected Component | Description / Signal Characteristics |
-|:---:|---|---|---|
-| **PC1** | `ADC1_IN11` (Analog) | **Cell 1 Voltage Divider** | Battery Cell 1 tap voltage (0V to 4.2V scaled down). |
-| **PC2** | `ADC1_IN12` (Analog) | **Cell 2 Voltage Divider** | Battery Cell 2 tap voltage (0V to 8.4V scaled down). |
-| **PC3** | `ADC1_IN13` (Analog) | **Cell 3 Voltage Divider** | Battery Cell 3 tap voltage (0V to 12.6V scaled down). |
-| **PC4** | `ADC1_IN14` (Analog) | **Cell 4 Voltage Divider** | Battery Cell 4 tap voltage (0V to 16.8V scaled down). |
-| **PC5** | `ADC1_IN15` (Analog) | **ACS712-20A Sensor** | Current sensor analog voltage. Must be divided down to 3.3V range. |
-| **PC0** | `ADC1_IN10` (Analog) | **MQ-7 Gas Sensor** | CO Gas sensor analog voltage. Must be divided down to 3.3V range. |
-| **PB6** | `I2C1_SCL` (AF4) | **16x2 LCD & MPU6050** | I2C Clock line. Shared between local display and accelerometer. |
-| **PB7** | `I2C1_SDA` (AF4) | **16x2 LCD & MPU6050** | I2C Data line. Shared between local display and accelerometer. |
-| **PB8** | GPIO (One-Wire) | **DS18B20 Temp 1 (T1)** | Battery pack temperature sensor 1. |
-| **PB9** | GPIO (One-Wire) | **DS18B20 Temp 2 (T2)** | Battery pack temperature sensor 2. |
-| **PC10**| `USART3_TX` (AF7) | **ESP-01S RX** | UART TX line to Wi-Fi module (3.3V logic level). |
-| **PC11**| `USART3_RX` (AF7) | **ESP-01S TX** | UART RX line from Wi-Fi module (3.3V logic level). |
-| **PA5** | `SPI1_SCK` (AF5) | **ILI9341 SCK** | SPI Clock to TFT display. |
-| **PA7** | `SPI1_MOSI` (AF5)| **ILI9341 MOSI**| SPI Data to TFT display. |
-| **PA4** | GPIO (Output) | **ILI9341 CS** | Chip Select for TFT (Active Low). |
-| **PA6** | GPIO (Output) | **ILI9341 D/C** | Data/Command select for TFT. |
-| **PA1** | GPIO (Output) | **ILI9341 RST** | Hardware Reset for TFT (Active Low). |
-| **PB12**| GPIO (Output) | **Cooling Fan Relay** | Controls the active cooling fan. Drive via MOSFET. |
-| **PB13**| GPIO (Output) | **Isolation Relay** | Controls the main pack isolation relay. Drive via MOSFET. |
-| **PB0** | GPIO (Output) | **Cell 1 Protection Relay** | Disconnects/protects Cell 1. Drive via MOSFET. |
-| **PB1** | GPIO (Output) | **Cell 2 Protection Relay** | Disconnects/protects Cell 2. Drive via MOSFET. |
-| **PB4** | GPIO (Output) | **Cell 3 Protection Relay** | Disconnects/protects Cell 3. Drive via MOSFET. |
-| **PB5** | GPIO (Output) | **Cell 4 Protection Relay** | Disconnects/protects Cell 4. Drive via MOSFET. |
-| **PB14**| GPIO (Output) | **Green Indicator LED** | Normal/Healthy state light (Active High). |
-| **PB15**| GPIO (Output) | **Red Indicator LED** | Alarm/Warning/Critical state light (Active High). |
-| **PB10**| GPIO (Output) | **Buzzer** | Active High warning/critical buzzer. |
-| **PC13**| GPIO (Input) | **User Button 1** | Page toggle button (Active Low, external/internal pull-up). |
-| **PA10**| GPIO (Input) | **User Button 2** | Page toggle button (Active Low, internal pull-up). |
-| **PA2** | `USART2_TX` (AF7) | **PC Serial Debug** | Connects to virtual COM port via ST-LINK for logging. |
-| **PA3** | `USART2_RX` (AF7) | **PC Serial Debug** | Connects to virtual COM port via ST-LINK for logging. |
+| Pin Name | LQFP64 Pin | Function / Mode | Connected Component | Description / Signal Characteristics |
+|:---:|:---:|---|---|---|
+| **PC1** | **9** | `ADC1_IN11` (Analog) | **Cell 1 Voltage Divider** | Battery Cell 1 tap voltage (0V to 4.2V scaled down). |
+| **PC2** | **10** | `ADC1_IN12` (Analog) | **Cell 2 Voltage Divider** | Battery Cell 2 tap voltage (0V to 8.4V scaled down). |
+| **PC3** | **11** | `ADC1_IN13` (Analog) | **Cell 3 Voltage Divider** | Battery Cell 3 tap voltage (0V to 12.6V scaled down). |
+| **PC4** | **24** | `ADC1_IN14` (Analog) | **Cell 4 Voltage Divider** | Battery Cell 4 tap voltage (0V to 16.8V scaled down). |
+| **PC5** | **25** | `ADC1_IN15` (Analog) | **ACS758 Sensor** | Current sensor analog voltage. Must be divided down to 3.3V range. |
+| **PC0** | **8** | `ADC1_IN10` (Analog) | **MQ-7 Gas Sensor** | CO Gas sensor analog voltage. Must be divided down to 3.3V range. |
+| **PB6** | **58** | `I2C1_SCL` (AF4) | **16x2 LCD & MPU6050** | I2C Clock line. Shared between local display and accelerometer. |
+| **PB7** | **59** | `I2C1_SDA` (AF4) | **16x2 LCD & MPU6050** | I2C Data line. Shared between local display and accelerometer. |
+| **PB8** | **61** | GPIO (One-Wire) | **DS18B20 Temp 1 (T1)** | Battery pack temperature sensor 1. |
+| **PB9** | **62** | GPIO (One-Wire) | **DS18B20 Temp 2 (T2)** | Battery pack temperature sensor 2. |
+| **PC10**| **51** | `USART3_TX` (AF7) | **ESP-01S RX** | UART TX line to Wi-Fi module (3.3V logic level). |
+| **PC11**| **52** | `USART3_RX` (AF7) | **ESP-01S TX** | UART RX line from Wi-Fi module (3.3V logic level). |
+| **PA5** | **21** | `SPI1_SCK` (AF5) | **ILI9341 SCK** | SPI Clock to TFT display. |
+| **PA7** | **23** | `SPI1_MOSI` (AF5)| **ILI9341 MOSI**| SPI Data to TFT display. |
+| **PA4** | **20** | GPIO (Output) | **ILI9341 CS** | Chip Select for TFT (Active Low). |
+| **PA6** | **22** | GPIO (Output) | **ILI9341 D/C** | Data/Command select for TFT. |
+| **PA1** | **15** | GPIO (Output) | **ILI9341 RST** | Hardware Reset for TFT (Active Low). |
+| **PB12**| **33** | GPIO (Output) | **Cooling Fan Relay** | Controls the active cooling fan. Drive via MOSFET. |
+| **PB13**| **34** | GPIO (Output) | **Isolation Relay** | Controls the main pack isolation relay. Drive via MOSFET. |
+| **PB0** | **26** | GPIO (Output) | **Cell 1 Protection Relay** | Disconnects/protects Cell 1. Drive via MOSFET. |
+| **PB1** | **27** | GPIO (Output) | **Cell 2 Protection Relay** | Disconnects/protects Cell 2. Drive via MOSFET. |
+| **PB4** | **56** | GPIO (Output) | **Cell 3 Protection Relay** | Disconnects/protects Cell 3. Drive via MOSFET. |
+| **PB5** | **57** | GPIO (Output) | **Cell 4 Protection Relay** | Disconnects/protects Cell 4. Drive via MOSFET. |
+| **PB14**| **35** | GPIO (Output) | **Green Indicator LED** | Normal/Healthy state light (Active High). |
+| **PB15**| **36** | GPIO (Output) | **Red Indicator LED** | Alarm/Warning/Critical state light (Active High). |
+| **PB10**| **29** | GPIO (Output) | **Buzzer** | Active High warning/critical buzzer. |
+| **PC13**| **2** | GPIO (Input) | **User Button 1** | Page toggle button (Active Low, external/internal pull-up). |
+| **PA10**| **43** | GPIO (Input) | **User Button 2** | Page toggle button (Active Low, internal pull-up). |
+| **PA2** | **16** | `USART2_TX` (AF7) | **PC Serial Debug** | Connects to virtual COM port via ST-LINK for logging. |
+| **PA3** | **17** | `USART2_RX` (AF7) | **PC Serial Debug** | Connects to virtual COM port via ST-LINK for logging. |
+
+### 🔌 Power and System Pins Reference (LQFP64)
+*   **VDD (3.3V Digital Power):** Pins 19, 32, 48, 64 (connect a 100nF decoupling capacitor to each pin).
+*   **VSS (Digital Ground):** Pins 18, 31, 47, 63.
+*   **VDDA (3.3V Analog Power):** Pin 13 (analog supply for ADC. Filter with a ferrite bead and decoupling capacitor).
+*   **VSSA (Analog Ground):** Pin 12 (analog ground return path. Connect to system ground at a single star point).
+*   **VBAT (Backup Power):** Pin 1 (connect to VDD if unused).
+*   **BOOT0 (Boot Select):** Pin 60 (pull down to GND using a 10k resistor).
+*   **NRST (Reset):** Pin 7 (connect to 3.3V via 10k pull-up and 100nF capacitor to GND).
+*   **VCAP_1 (Internal Regulator Cap):** Pin 30 (must connect to a 4.7µF low-ESR ceramic capacitor to GND).
 
 
 ---
