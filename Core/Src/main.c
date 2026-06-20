@@ -941,6 +941,21 @@ void Measure_And_Print_Battery(float t1, float t2, float vib) {
     
     float pack_voltage = cell1 + cell2 + cell3 + cell4;
     
+    // Dynamically calibrate zero current baseline on the first run of Measure_And_Print_Battery
+    static uint8_t is_calibrated = 0;
+    if (!is_calibrated) {
+        uint32_t cal_sum = 0;
+        for (int i = 0; i < 100; i++) {
+            cal_sum += BareMetal_ADC_Read(15);
+            for (volatile int delay = 0; delay < 1000; delay++);
+        }
+        float cal_v = ((cal_sum / 100.0f) * true_3v3) / 4095.0f;
+        if (cal_v > 1.0f && cal_v < 1.5f) {
+            ACS712_ZERO_VOLTAGE = cal_v;
+        }
+        is_calibrated = 1;
+    }
+
     uint32_t raw_curr_sum = 0;
     for(int i = 0; i < 4096; i++) {
         raw_curr_sum += BareMetal_ADC_Read(15);
@@ -951,7 +966,8 @@ void Measure_And_Print_Battery(float t1, float t2, float vib) {
     float current_A = (ACS712_ZERO_VOLTAGE - pin_v_curr) / ACS712_SENSITIVITY;
     
     if(pin_v_curr < 0.20f) { current_A = 0.0f; }
-    if(current_A > -0.15f && current_A < 0.15f) current_A = 0.0f;
+    // Increased deadband threshold to 0.25A to prevent sensor drift or noise from showing false charge/discharge currents
+    if(current_A > -0.25f && current_A < 0.25f) current_A = 0.0f;
     
     // Calculate SoC based on the average of active cell voltages
     float total_active_voltage = 0.0f;
